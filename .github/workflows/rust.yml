@@ -14,6 +14,7 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     strategy:
+      fail-fast: false
       matrix:
         # You can add more, for any target you'd like!
         include:
@@ -21,9 +22,9 @@ jobs:
             os: ubuntu-latest
             target: x86_64-unknown-linux-musl
 
-          - build: macos
-            os: macos-latest
-            target: x86_64-apple-darwin
+          # - build: macos
+          #   os: macos-latest
+          #   target: x86_64-apple-darwin
 
           - build: windows-gnu
             os: windows-latest
