@@ -7,8 +7,6 @@ use std::fs::File;
 use std::io::{BufReader, Read, Write};
 use std::path::Path;
 use walkdir::WalkDir;
-use reqwest::StatusCode;
-use std::error::Error;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Config {
@@ -38,24 +36,6 @@ fn read_config(config_file: &str) -> Config {
             default_config
         }
     }
-}
-
-async fn get_country_by_ip(ip: &str) -> Result<String, Box<dyn Error>> {
-    let url = format!("https://api.ip.sb/geoip/{}", ip);
-    let client = reqwest::Client::new();
-    let res = client.get(url)
-        .header("User-Agent", "Actix-web")
-        .send()
-        .await?;
-
-    if res.status() == StatusCode::OK {
-        let body = res.json::<Value>().await?;
-        if let Some(country) = body["country"].as_str() {
-            return Ok(country.to_string());
-        }
-    }
-
-    Err("Unable to fetch country information".into())
 }
 
 
@@ -118,10 +98,7 @@ async fn list_images(subfolder: web::Path<String>, data: web::Data<Vec<String>>,
     let country = if let Some(cf_country) = req.headers().get("CF-IPCountry") {
         cf_country.to_str().unwrap_or("Unknown country").to_string()
     } else {
-        match get_country_by_ip(&ip_str).await { // 注意这里传递的是引用
-            Ok(country) => country,
-            Err(_) => "Unknown country".to_string(),
-        }
+        "Unknown country".to_string()
     };
 
     println!("Visitor IP: {}, Country: {}, Subfolder: {}", ip_str, country, subfolder);
