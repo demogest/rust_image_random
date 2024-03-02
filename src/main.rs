@@ -7,6 +7,8 @@ use std::fs::File;
 use std::io::{BufReader, Read, Write};
 use std::path::Path;
 use walkdir::WalkDir;
+use reqwest::StatusCode;
+use std::error::Error;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Config {
@@ -37,6 +39,25 @@ fn read_config(config_file: &str) -> Config {
         }
     }
 }
+
+async fn get_country_by_ip(ip: &str) -> Result<String, Box<dyn Error>> {
+    let url = format!("https://api.ip.sb/geoip/{}", ip);
+    let client = reqwest::Client::new();
+    let res = client.get(url)
+        .header("User-Agent", "Actix-web")
+        .send()
+        .await?;
+
+    if res.status() == StatusCode::OK {
+        let body = res.json::<Value>().await?;
+        if let Some(country) = body["country"].as_str() {
+            return Ok(country.to_string());
+        }
+    }
+
+    Err("Unable to fetch country information".into())
+}
+
 
 fn index_images(folder: &str) -> Vec<String> {
     // 创建一个Path实例
@@ -85,18 +106,26 @@ fn index_images(folder: &str) -> Vec<String> {
 
 async fn list_images(subfolder: web::Path<String>, data: web::Data<Vec<String>>, req: HttpRequest) -> impl Responder {
     // Get the visitor's ip address and print to log
-    if let Some(cf_ip) = req.headers().get("CF-Connecting-IP") {
-        if let Ok(ip_str) = cf_ip.to_str() {
-            println!(
-                "Visitor IP (from Cloudflare): {}, subfolder: {}",
-                ip_str, subfolder
-            );
-        }
+    let ip_str = if let Some(cf_ip) = req.headers().get("CF-Connecting-IP") {
+        cf_ip.to_str().unwrap_or("").to_string() // 转换为String
     } else if let Some(peer_addr) = req.peer_addr() {
-        println!("Visitor IP: {}, subfolder: {}", peer_addr.ip(), subfolder);
+        peer_addr.ip().to_string() // 已经是String，不需要再次转换
     } else {
-        println!("Could not determine visitor IP., subfolder: {}", subfolder);
-    }
+        "".to_string() // 转换为空String
+    };
+    
+    // 由于ip_str现在是String类型，我们在传递给get_country_by_ip时需要传递引用
+    let country = if let Some(cf_country) = req.headers().get("CF-IPCountry") {
+        cf_country.to_str().unwrap_or("Unknown country").to_string()
+    } else {
+        match get_country_by_ip(&ip_str).await { // 注意这里传递的是引用
+            Ok(country) => country,
+            Err(_) => "Unknown country".to_string(),
+        }
+    };
+
+    println!("Visitor IP: {}, Country: {}, Subfolder: {}", ip_str, country, subfolder);
+
     let subfolder = subfolder.into_inner();
     let filtered_images: Vec<&String> = if subfolder == "all" {
         data.iter().collect()
