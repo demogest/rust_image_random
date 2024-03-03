@@ -1,5 +1,6 @@
 {
   "host": "127.0.0.1",
   "port": 8080,
-  "image_folder": "./images"
+  "image_folder": "./images",
+  "pwd": "secret"
 }
