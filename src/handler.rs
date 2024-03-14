@@ -142,6 +142,7 @@ pub async fn upload_image(
     }
     // Get the folder path from the data
     let image_folder = &data[2][0];
+    let mut filepaths: Vec<String> = Vec::new();
     while let Ok(Some(mut field)) = payload.try_next().await {
         let content_disposition = field.content_disposition();
         let filename = match content_disposition.get_filename() {
@@ -177,6 +178,8 @@ pub async fn upload_image(
         // Save the image to the file
         match img.save_with_format(new_filepath.clone(), ImageFormat::WebP) {
             Ok(_) => {
+                filepaths.push("/api/image/".to_owned()+new_filename.as_str());
+
                 println!("Image uploaded from {} saved to {}",ip_str, new_filepath);
                 match create_thumbnail(Path::new(&new_filepath), 200, 200, &image_folder) {
                     Ok(_) => {
@@ -198,7 +201,7 @@ pub async fn upload_image(
             }
         }
     }
-    Ok(HttpResponse::Ok().json("Images uploaded successfully."))
+    Ok(HttpResponse::Ok().json(filepaths))
 }
 
 #[actix_web::get("/api/images/{subfolder}")]
